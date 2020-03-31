@@ -8,7 +8,7 @@ from Ant import UNIT_STATS
 from Move import Move
 from GameState import *
 from AIPlayerUtils import *
-
+import numpy as np
 
 ##
 #AIPlayer
@@ -138,6 +138,7 @@ def bestMove(searchNodes):
     return bestNode.move
 
 def hueristicStepsToGoal(state):
+    
     if getWinner(state) == state.whoseTurn:
         return -9999
     food = getCurrPlayerFood(None,state)
@@ -178,6 +179,21 @@ def hueristicStepsToGoal(state):
     #print("tunnel "+str(tunnelCoords))
     #score+=11-(state.inventories[state.whoseTurn].foodCount*7)    
     return score
+    
+def mapping(state):
+    inputs #array of inputs
+    return inputs
+
+def out():
+
+    return
+    
+def sigmoid(x):
+    return 1/(1 + np.exp(-x)) 
+    
+def backprop():
+
+    return    
 
 # class that represents a Node for heuristic search
 # contains a parent node, a move, a state, and an evaluation
@@ -257,3 +273,24 @@ def getNextState(currentState, move):
                             # If attacked an ant already don't attack any more
                             break
     return myGameState        
+
+    """
+    Inputs
+    1-Worker in danger
+    2-Fighter in danger
+    3-Queen in danger
+    4-fighter can attack
+    5-queen can attack
+    6-worker can deposit food
+    7-worker can pick up food
+    8-fighter can destroy enemy
+    9-fighter can occupy anthill
+    10-fighter can occupy tunnel
+    11-unit on allied tunnel
+    12-enemy unit in allied territory
+    13-allied unit in enemy territory
+    14-less fighters than opponent
+    15-less workers than opponent
+    16-can purchace unit
+    17-have I won
+    """
