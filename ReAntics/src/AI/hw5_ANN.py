@@ -182,8 +182,12 @@ def hueristicStepsToGoal(state):
     
 def mapping(state):
     inputs = [] #array of inputs that are either positive (1) or negative (0)
+    antCoordList = []
+    allAnts = getAntList(state)
+    for ant in allAnts:
+        antCoordList.append(ant.coords)
     
-    food = getCurrPlayerFood(None,state)
+    foods = getCurrPlayerFood(None,state)
 
     #Allied Data
     alliedTunnelCoords = getConstrList(state, state.whoseTurn, types=(TUNNEL,))[0].coords
@@ -204,17 +208,28 @@ def mapping(state):
     allAlliedUnits.append(alliedQueen)
 
     #1-Worker in danger
-        #check if any squares next to workers have enemy units in them (not account for ranged soldiers)
+    toAppend = 0
+    for worker in alliedWorkers:
+        if self.checkIfInAttackRange(worker.coord, enemyFighters):
+            toAppend = 1
+            break
+    inputs.append(toAppend)
 
     #2-Fighter in danger
+    toAppend = 0
+    for fighter in alliedFighters:
+        if self.checkIfInAttackRange(fighter.coord, enemyFighters):
+            toAppend = 1
+            break
+    inputs.append(toAppend)
 
     #3-Queen in danger
+    if self.checkIfInAttackRange(alliedQueen.coord, enemyFighters):
+        inputs.append(1)
+    else:
+        inputs.append(0)
 
-    #4-fighter can attack
-
-    #5-queen can attack enemy
-
-    #6-worker can deposit food
+    #4-worker can deposit food
     workersCarrying = []
     workersEmpty = []
     for worker in alliedWorkers:
@@ -223,10 +238,14 @@ def mapping(state):
         else:
             workersEmpty.append(worker)
 
-    antOnTunnel = getAntAt(state, alliedTunnelCoords)
-    antOnAnthill = getAntAt(state, alliedAnthilCoords)
+    #check if there are ants in tunnel
+    if alliedTunnelCoords in antCoordList:
+        antOnTunnel = True
+    if alliedAnthillCoords in antCoordList:
+        antOnAnthill = True
 
-    if antOnTunnel == None and antOnAnthill = None:
+    #check if workers with food can move to 
+    if antOnTunnel == False and antOnAnthill == False:
         if self.canMoveToCoord(workersCarrying, alliedAnthillCoords) or self.canMoveToCoord(workersCarrying, alliedTunnelCoords):
             inputs.append(1)
         else:
@@ -234,97 +253,120 @@ def mapping(state):
     else:
         inputs.append(0)
 
-    #7-worker can pick up food
+    #5-worker can pick up food
+    #get list of unoccupied food
+    freeFood = []
+    for food in foods:
+        if not food.coords in antCoordList:
+            freeFood.append(food)
+    
+    toAppend = 0
 
-    #9-fighter can occupy enemy anthill
+    #check if unoccupied food is within the movement range of all empty workers
+    for food in freeFood:
+        if self.canMoveToCoord(workersEmpty, food.coords):
+            toAppend = 1
+
+    inputs.append(toAppend)
+
+    #6-fighter can occupy enemy anthill
     if self.canMoveToCoord(alliedFighters, enemyAnthillCoords):
         inputs.append(1)
     else:
         inputs.append(0)
 
-    #10-fighter can occupy enemy tunnel
+    #7-fighter can occupy enemy tunnel
     if self.canMoveToCoord(alliedFighters, enemyTunnelCoords):
         inputs.append(1)
     else:
         inputs.append(0)
 
-    #11-unit not on allied tunnel
+    #8-unit not on allied tunnel
     if antOnTunnel == None :
         inputs.append(1)
     else:
         inputs.append(0)
 
-    #12 - unit not on allied anthill
+    #9 - unit not on allied anthill
     antOnHill = getAntAt(state, alliedAnthillCoords)
     if antOnHill == None :
         inputs.append(1)
     else:
         inputs.append(0)
 
-    #13-enemy unit in allied territory
+    #10-enemy unit in allied territory
     if self.checkIfInAlliedTerr(allEnemyUnits):
         inputs.append(1)
     else:
         inputs.append(0)
 
 
-    #14-allied unit in enemy territory
+    #11-allied unit in enemy territory
     if self.checkIfInEnemyTerr(allAlliedUnits):
         inputs.append(1)
     else:
         inputs.append(0)
 
 
-    #15-more fighters than opponent
+    #12-more fighters than opponent
     if alliedFighters.len() > enemyFighters.len() :
         inputs.append(1)
     else:
         inputs.append(0)
 
-    #16-more workers than opponent
+    #13-more workers than opponent
     if alliedWorkers.len() > enemyWorkers.len() :
         inputs.append(1)
     else:
         inputs.append(0)
 
     food = getCurrPlayerFood(None,state)
-    #17-can purchace worker
+    #14-can purchace worker
     if food >= 1:
         inputs.append(1)
     else:
         inputs.append(0)
 
-    #18-can purchace soldier
+    #15-can purchace soldier
     if food >= 2:
         inputs.append(1)
     else:
         inputs.append(0)
 
-    #19-have I won
+    #16-have I won
     if getWinner(state) == state.whoseTurn or len(getAntList(state, 1-state.whoseTurn, types=(QUEEN,))) == 0:
         inputs.append(1)
     else:
         input.append(0)
 
     #check that the correct amounts of inputs have been added
-    if inputs.len != 19:
-        print("length of inputs was not 19!")
+    if inputs.len != 16:
+        print("length of inputs was not 16!")
 
     return inputs
 
-#check next to enemy
+#Helper coordinateds should all return bools
+#check if a coordinate is within range of any of the list ants' attack
+def checkIfInAttackRange(self, coord, ants):
+    return False
 
 #check if any units in list are in enemy territory
 def checkIfInEnemyTerr(self, units):
+    for unit in units:
+        if unit.coords[1] > 3: #check if y coord is below 3
+            return True
+    return False
 
 #check if any units in list are in allied territory
 def checkIfInAlliedTerr(self, units):
-
-#check if any units in list are on a certain coordinate
-def checkIfOnCoord(self, units, coord):
+    for unit in units:
+        if unit.coords[1] <= 3: #check if y coord is above or equal to 3
+            return True
+    return False
 
 #check if any units can move to a certain coordinate
 def canMoveToCoord(self, units, coord):
+    return False
 
 def out():
 
