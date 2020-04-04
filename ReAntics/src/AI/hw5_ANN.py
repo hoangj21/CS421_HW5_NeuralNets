@@ -327,19 +327,20 @@ def sigmoid(x):
     return 1/(1 + np.exp(-x)) 
 
 def forward_prop(network, inputs):
-    for layer in network:am
+	for layer in network:
 		new_inputs = []
 		for neuron in layer:
 			activation = activate(neuron['weights'], inputs)
 			neuron['output'] = sigmoid(activation)
 			new_inputs.append(neuron['output'])
 		inputs = new_inputs
-	return inputs   
+	return inputs
 
+#helper function for back propogation 
 def transfer_derivative(output):
 	return output * (1.0 - output)
-def back_prop():
-    for i in reversed(range(len(network))):
+def back_prop(network, expected):
+	for i in reversed(range(len(network))):
 		layer = network[i]
 		errors = list()
 		if i != len(network)-1:
@@ -355,8 +356,27 @@ def back_prop():
 		for j in range(len(layer)):
 			neuron = layer[j]
 			neuron['delta'] = errors[j] * transfer_derivative(neuron['output'])
-    return    
 
+# Update network weights with error
+def update_weights(network, row, l_rate):
+	for i in range(len(network)):
+		inputs = row[:-1]
+		if i != 0:
+			inputs = [neuron['output'] for neuron in network[i - 1]]
+		for neuron in network[i]:
+			for j in range(len(inputs)):
+				neuron['weights'][j] += l_rate * neuron['delta'] * inputs[j]
+			neuron['weights'][-1] += l_rate * neuron['delta']
+def train(network, train, learning_rate, num_epoch, num_outputs):
+	for epoch in range(num_epoch):
+		sum_error = 0
+		for row in train:
+			outputs = forward_prop(network, row)
+			expected = [0 for i in range(num_outputs)]
+			expected[row[-1]] = 1
+			sum_error += sum([(expected[i]-outputs[i])**2 for i in range(len(expected))])
+			back_prop(network, expected)
+			update_weights(network, row, learning_rate)
 # class that represents a Node for heuristic search
 # contains a parent node, a move, a state, and an evaluation
 class SearchNode:
