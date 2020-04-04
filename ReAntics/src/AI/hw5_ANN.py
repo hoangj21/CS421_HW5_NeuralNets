@@ -95,6 +95,7 @@ class AIPlayer(Player):
     #Return: The Move to be made
     ##
     def getMove(self, currentState):
+        mapping(currentState)
         allMoves = listAllLegalMoves(currentState)
 
         nodes = []
@@ -137,10 +138,10 @@ def bestMove(searchNodes):
 
     return bestNode.move
 
-def hueristicStepsToGoal(state):
+def heuristicStepsToGoal(state):
     
     if getWinner(state) == state.whoseTurn:
-        return -9999
+        return -999
     food = getCurrPlayerFood(None,state)
     foodCoords = food[0].coords
     tunnelCoords = getConstrList(state,state.whoseTurn,types=(TUNNEL,))[0].coords
@@ -150,7 +151,7 @@ def hueristicStepsToGoal(state):
     r_soldiers = getAntList(state, state.whoseTurn, types=(R_SOLDIER,))
     score = 0
     if len(getAntList(state, 1-state.whoseTurn, types=(QUEEN,))) == 0:
-        return -9999
+        return -999
     queenCoords = getAntList(state, 1-state.whoseTurn, types=(QUEEN,))[0].coords
     
     if len(getAntList(state, 1-state.whoseTurn, types=(WORKER,)))!=0:
@@ -178,200 +179,134 @@ def hueristicStepsToGoal(state):
     #print("food " +str(foodCoords))
     #print("tunnel "+str(tunnelCoords))
     #score+=11-(state.inventories[state.whoseTurn].foodCount*7)    
+    score = score+80
+    score = score/100.0
+    #print(score)
     return score
     
 def mapping(state):
-    inputs = [] #array of inputs that are either positive (1) or negative (0)
-    antCoordList = []
-    allAnts = getAntList(state)
-    for ant in allAnts:
-        antCoordList.append(ant.coords)
-    
-    foods = getCurrPlayerFood(None,state)
-
+    inputs = [] #array of floats that are between positive (1) or negative (0)
     #Allied Data
+    foods = getCurrPlayerFood(None,state)
     alliedTunnelCoords = getConstrList(state, state.whoseTurn, types=(TUNNEL,))[0].coords
-    alliedAnthillCoords = getConstrList(state, state.whoseTurn, types=(ANTHILL,))[0].coords
+    alliedAnthill = getConstrList(state, state.whoseTurn, types=(ANTHILL,))[0]
     alliedWorkers = getAntList(state, state.whoseTurn, types=(WORKER,))
     alliedFighters = getAntList(state, state.whoseTurn, types=(DRONE,SOLDIER,R_SOLDIER))
     alliedQueen = getAntList(state, state.whoseTurn, types=(QUEEN,))[0]
-    allAlliedUnits = alliedWorkers + alliedFighters
-    allAlliedUnits.append(alliedQueen)
-    
     #Enemy Data
     enemyTunnelCoords = getConstrList(state, 1-state.whoseTurn, types=(TUNNEL,))[0].coords
-    enemyAnthillCoords = getConstrList(state, 1-state.whoseTurn, types=(ANTHILL,))[0].coords
+    enemyAnthill = getConstrList(state, 1-state.whoseTurn, types=(ANTHILL,))[0]
     enemyWorkers = getAntList(state, 1-state.whoseTurn, types=(WORKER,))
     enemyFighters = getAntList(state, 1-state.whoseTurn, types=(DRONE,SOLDIER,R_SOLDIER))
     enemyQueen = getAntList(state, 1-state.whoseTurn, types=(QUEEN,))[0]
-    allEnemyUnits = enemyWorkers + enemyFighters
-    allAlliedUnits.append(alliedQueen)
 
-    #1-Worker in danger
-    toAppend = 0
-    for worker in alliedWorkers:
-        if self.checkIfInAttackRange(worker.coord, enemyFighters):
-            toAppend = 1
-            break
-    inputs.append(toAppend)
-
-    #2-Fighter in danger
-    toAppend = 0
-    for fighter in alliedFighters:
-        if self.checkIfInAttackRange(fighter.coord, enemyFighters):
-            toAppend = 1
-            break
-    inputs.append(toAppend)
-
-    #3-Queen in danger
-    if self.checkIfInAttackRange(alliedQueen.coord, enemyFighters):
-        inputs.append(1)
+    #1-have I won
+    if getWinner(state) == state.whoseTurn:
+        inputs.append(1.0)
     else:
-        inputs.append(0)
+        inputs.append(0.0)
 
-    #4-worker can deposit food
-    workersCarrying = []
-    workersEmpty = []
-    for worker in alliedWorkers:
-        if worker.carrying:
-            workersCarrying.append(worker)
-        else:
-            workersEmpty.append(worker)
+    #2-Food %
+    foodPercent = state.inventories[state.whoseTurn].foodCount/11
+    inputs.append(foodPercent)
 
-    #check if there are ants in tunnel
-    if alliedTunnelCoords in antCoordList:
-        antOnTunnel = True
-    if alliedAnthillCoords in antCoordList:
-        antOnAnthill = True
-
-    #check if workers with food can move to 
-    if antOnTunnel == False and antOnAnthill == False:
-        if self.canMoveToCoord(workersCarrying, alliedAnthillCoords) or self.canMoveToCoord(workersCarrying, alliedTunnelCoords):
-            inputs.append(1)
-        else:
-            inputs.append(0)
+    #3-Our fighters vs their fighters - equal fighters is .5
+    if (len(alliedFighters) > 0 and len(enemyFighters) == 0):
+        inputs.append(1.0)
     else:
-        inputs.append(0)
+        diff = len(alliedFighters) - len(enemyFighters)
+        inputs.append(sigmoid(diff)) 
 
-    #5-worker can pick up food
-    #get list of unoccupied food
-    freeFood = []
-    for food in foods:
-        if not food.coords in antCoordList:
-            freeFood.append(food)
+    #4-Our workers vs their workers
+    if (len(alliedWorkers) > 0 and len(enemyWorkers) == 0):
+        inputs.append(1.0)
+    else:
+        diff = len(alliedWorkers) - len(enemyWorkers)
+        inputs.append(sigmoid(diff)) 
+
+    #5-Fighter distance from target avg smthd
+    if len(alliedFighters) > 0:
+        if len(enemyWorkers)!=0:
+            targetCoords = enemyWorkers[0].coords
+        else:    
+            targetCoords = enemyQueen.coords    
+        
+        dist = 0
+        for drone in alliedFighters:
+            dist += approxDist(drone.coords,targetCoords)
+
+        avgDist = dist / len(alliedFighters)
+
+            #takes the distance between queens and the distance between anthills and averages them
+            #intended to give an approximate "battlefield" distance to compare the numbers to
+        queensDist = approxDist(alliedQueen.coords, enemyQueen.coords)
+        antHillsDist = approxDist(alliedAnthill.coords, enemyAnthill.coords)
+        offenceDist = (queensDist + antHillsDist) / 2
+
+        fighterDistPerc = 1 - (avgDist / offenceDist)  #inverts the percentage to make 1 = very close to enemy valuables
+
+            #check to see its not under 0
+        if fighterDistPerc < 0:
+            fighterDistPerc = 0.0
+        
+        inputs.append(fighterDistPerc)
+    else:
+        inputs.append(0.0)
+
+    #6-worker distance from food avg smthd
+    distSum = 0
+    if len(alliedWorkers) > 0:
+        print("I have workers")
+        for worker in alliedWorkers:
+            if worker.carrying == True:
+                distSum += approxDist(worker.coords,alliedTunnelCoords)
+            else:
+                distSum += approxDist(foods[0].coords,alliedTunnelCoords)
+                distSum += approxDist(worker.coords, foods[0].coords)
+            
+        distAvg = distSum / len(alliedWorkers) # the average distance a worker is from delivering a food
+
+            #will be compared with about the total distance of a trip to food
+        foodToTunnelDist = 0
+        for food in foods:
+            foodToTunnelDist += approxDist(food.coords,alliedTunnelCoords)
+
+        workerDistPerc = 1 - (distAvg / foodToTunnelDist) #inverts the percentage to make 1 = food delivered
+
+            #check to see its not under 0
+        if workerDistPerc < 0:
+            workerDistPerc = 0.0
+        
+        inputs.append(workerDistPerc)
+    else:
+        inputs.append(0.0)
     
-    toAppend = 0
 
-    #check if unoccupied food is within the movement range of all empty workers
-    for food in freeFood:
-        if self.canMoveToCoord(workersEmpty, food.coords):
-            toAppend = 1
+    #7-Queen/Anthill health % avg
+    queenHealthPerc = alliedQueen.health / 10
+    #anthillHealthPerc = alliedAnthill.health / 3
+    #inputs.append((queenHealthPerc + anthillHealthPerc)/2) #find out  how to check anthill health
+    inputs.append(queenHealthPerc)
 
-    inputs.append(toAppend)
-
-    #6-fighter can occupy enemy anthill
-    if self.canMoveToCoord(alliedFighters, enemyAnthillCoords):
-        inputs.append(1)
-    else:
-        inputs.append(0)
-
-    #7-fighter can occupy enemy tunnel
-    if self.canMoveToCoord(alliedFighters, enemyTunnelCoords):
-        inputs.append(1)
-    else:
-        inputs.append(0)
-
-    #8-unit not on allied tunnel
-    if antOnTunnel == None :
-        inputs.append(1)
-    else:
-        inputs.append(0)
-
-    #9 - unit not on allied anthill
-    antOnHill = getAntAt(state, alliedAnthillCoords)
-    if antOnHill == None :
-        inputs.append(1)
-    else:
-        inputs.append(0)
-
-    #10-enemy unit in allied territory
-    if self.checkIfInAlliedTerr(allEnemyUnits):
-        inputs.append(1)
-    else:
-        inputs.append(0)
-
-
-    #11-allied unit in enemy territory
-    if self.checkIfInEnemyTerr(allAlliedUnits):
-        inputs.append(1)
-    else:
-        inputs.append(0)
-
-
-    #12-more fighters than opponent
-    if alliedFighters.len() > enemyFighters.len() :
-        inputs.append(1)
-    else:
-        inputs.append(0)
-
-    #13-more workers than opponent
-    if alliedWorkers.len() > enemyWorkers.len() :
-        inputs.append(1)
-    else:
-        inputs.append(0)
-
-    food = getCurrPlayerFood(None,state)
-    #14-can purchace worker
-    if food >= 1:
-        inputs.append(1)
-    else:
-        inputs.append(0)
-
-    #15-can purchace soldier
-    if food >= 2:
-        inputs.append(1)
-    else:
-        inputs.append(0)
-
-    #16-have I won
-    if getWinner(state) == state.whoseTurn or len(getAntList(state, 1-state.whoseTurn, types=(QUEEN,))) == 0:
-        inputs.append(1)
-    else:
-        input.append(0)
+    #8-Enemy Queen/Anthill health %avg
+    queenHealthPerc = enemyQueen.health / 10
+    #anthillHealthPerc = enemyAnthill.health / 3
+    #inputs.append((queenHealthPerc + anthillHealthPerc)/2)
+    inputs.append(1-queenHealthPerc)
 
     #check that the correct amounts of inputs have been added
-    if inputs.len != 16:
-        print("length of inputs was not 16!")
+    if len(inputs) != 8:
+        print("length of inputs was not 8!")
+    else:                                                          # for debugging
+        print ("Produced an input from a state! : " + str(inputs)) #
 
     return inputs
-
-#Helper coordinateds should all return bools
-#check if a coordinate is within range of any of the list ants' attack
-def checkIfInAttackRange(self, coord, ants):
-    return False
-
-#check if any units in list are in enemy territory
-def checkIfInEnemyTerr(self, units):
-    for unit in units:
-        if unit.coords[1] > 3: #check if y coord is below 3
-            return True
-    return False
-
-#check if any units in list are in allied territory
-def checkIfInAlliedTerr(self, units):
-    for unit in units:
-        if unit.coords[1] <= 3: #check if y coord is above or equal to 3
-            return True
-    return False
-
-#check if any units can move to a certain coordinate
-def canMoveToCoord(self, units, coord):
-    return False
 
 def out():
 
     return
-    
+
+#helper fn to perform a sigmoid function
 def sigmoid(x):
     return 1/(1 + np.exp(-x)) 
     
@@ -389,7 +324,7 @@ class SearchNode:
         self.move = move
         self.depth = 0
         self.state = state
-        self.evaluation = self.depth + hueristicStepsToGoal(self.state)
+        self.evaluation = self.depth + heuristicStepsToGoal(self.state)
 
 def getNextState(currentState, move):
     # variables I will need
@@ -457,24 +392,3 @@ def getNextState(currentState, move):
                             # If attacked an ant already don't attack any more
                             break
     return myGameState        
-
-    """
-    Inputs
-    1-Worker in danger
-    2-Fighter in danger
-    3-Queen in danger
-    4-fighter can attack
-    5-queen can attack
-    6-worker can deposit food
-    7-worker can pick up food
-    8-fighter can destroy enemy
-    9-fighter can occupy anthill
-    10-fighter can occupy tunnel
-    11-unit on allied tunnel
-    12-enemy unit in allied territory
-    13-allied unit in enemy territory
-    14-less fighters than opponent
-    15-less workers than opponent
-    16-can purchace unit
-    17-have I won
-    """
