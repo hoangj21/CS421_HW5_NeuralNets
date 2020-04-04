@@ -30,6 +30,7 @@ class AIPlayer(Player):
     ##
     def __init__(self, inputPlayerId):
         super(AIPlayer,self).__init__(inputPlayerId, "Annie")
+        self.stateIOList = []
     
     ##
     #getPlacement
@@ -104,7 +105,14 @@ class AIPlayer(Player):
 
             nodes.append(SearchNode(move,state,parent=None))
 
-        return bestMove(nodes)
+        chosenBestNode = bestMove(nodes)
+        
+        #append a tuple that is the mapped array of the state and the evaluation
+        mappedIOTuple = (mapping(chosenBestNode.state), chosenBestNode.evaluation)
+        self.stateIOList.append(mappedIOTuple)
+        #print("Mapped best move: " + str(mappedIOTuple))
+
+        return chosenBestNode.move
     
     ##
     #getAttack
@@ -128,6 +136,10 @@ class AIPlayer(Player):
     #
     def registerWin(self, hasWon):
         #method templaste, not implemented
+        print("\nThe Game Ended!")
+        print("State IO List:")
+        for pair in self.stateIOList:
+            print(pair)
         pass
 
 # given a list of SearchNodes, return the Move that gives the best evaluation
@@ -136,7 +148,7 @@ def bestMove(searchNodes):
     #find the node with the best evaluation
     bestNode = min(searchNodes, key=lambda node: node.evaluation)
 
-    return bestNode.move
+    return bestNode
 
 def heuristicStepsToGoal(state):
     
@@ -210,26 +222,46 @@ def mapping(state):
     foodPercent = state.inventories[state.whoseTurn].foodCount/11
     inputs.append(foodPercent)
 
-    #3-Our fighters vs their fighters - equal fighters is .5
-    if (len(alliedFighters) > 0 and len(enemyFighters) == 0):
+    #3-do our fighters outnumber their fighters
+    if (len(alliedFighters) > len(enemyFighters)):
         inputs.append(1.0)
     else:
-        diff = len(alliedFighters) - len(enemyFighters)
-        inputs.append(sigmoid(diff)) 
+        inputs.append(0.0)
 
-    #4-Our workers vs their workers
-    if (len(alliedWorkers) > 0 and len(enemyWorkers) == 0):
+    #4-do their fighters outnumber our fighters
+    if (len(alliedFighters) < len(enemyFighters)):
         inputs.append(1.0)
     else:
-        diff = len(alliedWorkers) - len(enemyWorkers)
-        inputs.append(sigmoid(diff)) 
+        inputs.append(0.0)
 
-    #5-Fighter distance from target avg smthd
+    #5-do our workers outnumber their workers
+    if (len(alliedWorkers) > len(enemyWorkers)):
+        inputs.append(1.0)
+    else:
+        inputs.append(0.0)
+
+    #6-do their workers outnumber our workers
+    if (len(alliedWorkers) < len(enemyWorkers)):
+        inputs.append(1.0)
+    else:
+        inputs.append(0.0)
+
+    #7-do we have a fighter close to our target
+    if len(enemyWorkers)!=0:
+        targetCoords = enemyWorkers[0].coords
+    else:    
+        targetCoords = enemyQueen.coords 
+
+    toAppend = 0.0
     if len(alliedFighters) > 0:
-        if len(enemyWorkers)!=0:
-            targetCoords = enemyWorkers[0].coords
-        else:    
-            targetCoords = enemyQueen.coords    
+        for fighter in alliedFighters:
+            if approxDist(fighter.coords, targetCoords) < 3:
+                toAppend = 1.1
+    inputs.append(toAppend)
+
+    #8-avg fighter distance method
+    if len(alliedFighters) > 0:
+           
         
         dist = 0
         for drone in alliedFighters:
@@ -253,10 +285,19 @@ def mapping(state):
     else:
         inputs.append(0.0)
 
-    #6-worker distance from food avg smthd
+    #9-a carrying worker is close to delivering food
+    toAppend = 0.0
+
+    if len(alliedWorkers) > 0:
+        for worker in alliedWorkers:
+            if worker.carrying == True and approxDist(worker.coords,alliedTunnelCoords) < 2:
+                toAppend = 1.0
+
+    inputs.append(toAppend)
+
+    #10-worker distance from food avg smthd
     distSum = 0
     if len(alliedWorkers) > 0:
-        print("I have workers")
         for worker in alliedWorkers:
             if worker.carrying == True:
                 distSum += approxDist(worker.coords,alliedTunnelCoords)
@@ -281,24 +322,45 @@ def mapping(state):
     else:
         inputs.append(0.0)
     
+    #11-queen full health
+    if alliedQueen.health == 10:
+        inputs.append(1.0)
+    else:
+        inputs.append(0.0)
 
-    #7-Queen/Anthill health % avg
-    queenHealthPerc = alliedQueen.health / 10
-    #anthillHealthPerc = alliedAnthill.health / 3
-    #inputs.append((queenHealthPerc + anthillHealthPerc)/2) #find out  how to check anthill health
-    inputs.append(queenHealthPerc)
+    #12-Queen health %
+    inputs.append(alliedQueen.health / 10)
 
-    #8-Enemy Queen/Anthill health %avg
-    queenHealthPerc = enemyQueen.health / 10
-    #anthillHealthPerc = enemyAnthill.health / 3
-    #inputs.append((queenHealthPerc + anthillHealthPerc)/2)
-    inputs.append(1-queenHealthPerc)
+    #13-anthill full health
+    if alliedAnthill.captureHealth == 3:
+        inputs.append(1.0)
+    else:
+        inputs.append(0.0)
+
+    #14-anthill health %
+    inputs.append(alliedAnthill.captureHealth / 3)
+
+    #15-enemyQueen full health
+    if enemyQueen.health == 10:
+        inputs.append(1.1)
+    else:
+        inputs.append(0.0)
+
+    #16-enemyQueen health %
+    inputs.append(enemyQueen.health / 10)
+
+    #17-enemyAnthill full health
+    if enemyAnthill.captureHealth == 3:
+        inputs.append(1.0)
+    else:
+        inputs.append(0.0)
+
+    #18-Enemy Anthill health %
+    inputs.append(enemyAnthill.captureHealth / 3)
 
     #check that the correct amounts of inputs have been added
-    if len(inputs) != 8:
-        print("length of inputs was not 8!")
-    else:                                                          # for debugging
-        print ("Produced an input from a state! : " + str(inputs)) #
+    if len(inputs) != 18:
+        print("length of inputs was not 18!")
 
     return inputs
 
