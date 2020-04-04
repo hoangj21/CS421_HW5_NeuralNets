@@ -302,10 +302,13 @@ def mapping(state):
 
     return inputs
 
-#####################################################################
+####################################################################################################
+# 
 # NEURAL NET CODE HERE
 # reference: https://machinelearningmastery.com/implement-backpropagation-algorithm-scratch-python/
-#####################################################################
+#    
+####################################################################################################
+
 def initialize_network(num_inputs, num_hidden, num_outputs):
 	network = list()
 	hidden = [{'weights':[random() for i in range(num_inputs + 1)]} for i in range(num_hidden)]
@@ -313,34 +316,45 @@ def initialize_network(num_inputs, num_hidden, num_outputs):
 	output = [{'weights':[random() for i in range(num_hidden + 1)]} for i in range(num_outputs)]
 	network.append(output)
 	return network    
-def forwardprop(network, inputs):
-    for layer in network:
-		new_inputs = []
-		for neuron in layer:
-			activation = activate(neuron['weights'], inputs)
-			neuron['output'] = transfer(activation)
-			new_inputs.append(neuron['output'])
-		inputs = new_inputs
-	return inputs   
+
+#activate and sigmoid are helper functions for forward prop
 def activate(inputs, weights):
     activation = np.multiply(inputs,weights)
     activation_sum = np.sum(activation)
     return activation_sum
-    
-#helper fn to perform a sigmoid function
+
 def sigmoid(x):
     return 1/(1 + np.exp(-x)) 
 
-def err(target,actual):
-    return = target - actual
+def forward_prop(network, inputs):
+    for layer in network:am
+		new_inputs = []
+		for neuron in layer:
+			activation = activate(neuron['weights'], inputs)
+			neuron['output'] = sigmoid(activation)
+			new_inputs.append(neuron['output'])
+		inputs = new_inputs
+	return inputs   
 
-def error_term(target, actual):
-    err = err(target, actual)
-    deriv = actual*(1-actual)
-    return err*deriv   
-
-def backprop():
-
+def transfer_derivative(output):
+	return output * (1.0 - output)
+def back_prop():
+    for i in reversed(range(len(network))):
+		layer = network[i]
+		errors = list()
+		if i != len(network)-1:
+			for j in range(len(layer)):
+				error = 0.0
+				for neuron in network[i + 1]:
+					error += (neuron['weights'][j] * neuron['delta'])
+				errors.append(error)
+		else:
+			for j in range(len(layer)):
+				neuron = layer[j]
+				errors.append(expected[j] - neuron['output'])
+		for j in range(len(layer)):
+			neuron = layer[j]
+			neuron['delta'] = errors[j] * transfer_derivative(neuron['output'])
     return    
 
 # class that represents a Node for heuristic search
