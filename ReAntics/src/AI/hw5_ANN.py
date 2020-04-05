@@ -318,10 +318,11 @@ def initialize_network(num_inputs, num_hidden, num_outputs):
 	return network    
 
 #activate and sigmoid are helper functions for forward prop
-def activate(inputs, weights):
-    activation = np.multiply(inputs,weights)
-    activation_sum = np.sum(activation)
-    return activation_sum
+def activate(weights,inputs):
+    activation = weights[-1]
+	for i in range(len(weights)-1):
+		activation += weights[i] * inputs[i]
+    return activation
 
 def sigmoid(x):
     return 1/(1 + np.exp(-x)) 
@@ -372,7 +373,7 @@ def train(network, train, learning_rate, num_epoch, num_outputs):
 		sum_error = 0
 		for row in train:
 			outputs = forward_prop(network, row)
-			expected = [0 for i in range(num_outputs)]
+			expected = [0 for i in range(num_outputs)] #insert heuristic results here
 			expected[row[-1]] = 1
 			sum_error += sum([(expected[i]-outputs[i])**2 for i in range(len(expected))])
 			back_prop(network, expected)
