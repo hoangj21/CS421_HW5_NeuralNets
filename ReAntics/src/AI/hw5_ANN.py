@@ -1,4 +1,4 @@
-import random
+import random as rand
 import sys
 sys.path.append("..")  #so other modules can be found in parent dir
 from Player import *
@@ -9,6 +9,9 @@ from Move import Move
 from GameState import *
 from AIPlayerUtils import *
 import numpy as np
+from math import exp
+from random import seed
+from random import random
 
 ##
 #AIPlayer
@@ -30,7 +33,8 @@ class AIPlayer(Player):
     ##
     def __init__(self, inputPlayerId):
         super(AIPlayer,self).__init__(inputPlayerId, "Annie")
-    
+        self.stateInList = [] #Inputs for ANN
+        self.stateOutList = [] #Expected outputs for ANN 
     ##
     #getPlacement
     #
@@ -55,9 +59,9 @@ class AIPlayer(Player):
                 move = None
                 while move == None:
                     #Choose any x location
-                    x = random.randint(0, 9)
+                    x = rand.randint(0, 9)
                     #Choose any y location on your side of the board
-                    y = random.randint(0, 3)
+                    y = rand.randint(0, 3)
                     #Set the move if this space is empty
                     if currentState.board[x][y].constr == None and (x, y) not in moves:
                         move = (x, y)
@@ -72,9 +76,9 @@ class AIPlayer(Player):
                 move = None
                 while move == None:
                     #Choose any x location
-                    x = random.randint(0, 9)
+                    x = rand.randint(0, 9)
                     #Choose any y location on enemy side of the board
-                    y = random.randint(6, 9)
+                    y = rand.randint(6, 9)
                     #Set the move if this space is empty
                     if currentState.board[x][y].constr == None and (x, y) not in moves:
                         move = (x, y)
@@ -85,15 +89,17 @@ class AIPlayer(Player):
         else:
             return [(0, 0)]
     
-    ##
+    ####################################################################################################
     #getMove
     #Description: Gets the next move from the Player.
+    # Mapping funtionc called here 
+    # States throughout whole game are saved though here     
     #
     #Parameters:
     #   currentState - The state of the current game waiting for the player's move (GameState)
     #
     #Return: The Move to be made
-    ##
+    ####################################################################################################
     def getMove(self, currentState):
         mapping(currentState)
         allMoves = listAllLegalMoves(currentState)
@@ -104,7 +110,16 @@ class AIPlayer(Player):
 
             nodes.append(SearchNode(move,state,parent=None))
 
-        return bestMove(nodes)
+        chosenBestNode = bestMove(nodes)
+        
+        #append a tuple that is the mapped array of the state and the evaluation
+        self.stateInList.append(mapping(chosenBestNode.state))
+        self.stateOutList.append(chosenBestNode.evaluation)
+        #mappedIOTuple = [mapping(chosenBestNode.state), chosenBestNode.evaluation]
+        #self.stateIOList.append(mappedIOTuple)
+        #print("Mapped best move: " + str(mappedIOTuple))
+
+        return chosenBestNode.move
     
     ##
     #getAttack
@@ -118,17 +133,35 @@ class AIPlayer(Player):
     def getAttack(self, currentState, attackingAnt, enemyLocations):
         #Attack a random enemy.
         print("Here")
-        return enemyLocations[random.randint(0, len(enemyLocations) - 1)]
+        return enemyLocations[rand.randint(0, len(enemyLocations) - 1)]
 
-
-    ##
+   
+    ####################################################################################################
     #registerWin
     #
-    # This agent doens't learn
-    #
+    # ANN Training done here 
+    ####################################################################################################
     def registerWin(self, hasWon):
-        #method templaste, not implemented
-        pass
+        
+        print("\nThe Game Ended!")
+        print("State IO List:")
+        print(self.stateInList)
+        print(self.stateOutList)
+        
+        #for pair in self.stateIOList:
+            #print(pair)
+        seed(1)
+        net = initialize_network(18, 13, 1)
+        dataset = self.stateInList
+        train(net,dataset,.5,20,1,self.stateOutList)
+        print(net[1])
+        
+        
+#
+#for layer in net:
+	#print(layer)
+
+        
 
 # given a list of SearchNodes, return the Move that gives the best evaluation
 def bestMove(searchNodes):
@@ -136,7 +169,7 @@ def bestMove(searchNodes):
     #find the node with the best evaluation
     bestNode = min(searchNodes, key=lambda node: node.evaluation)
 
-    return bestNode.move
+    return bestNode
 
 def heuristicStepsToGoal(state):
     
@@ -183,7 +216,14 @@ def heuristicStepsToGoal(state):
     score = score/100.0
     #print(score)
     return score
-    
+
+####################################################################################################
+# 
+# mapping 
+# maps a state to input values for ANN
+# 18 total inputs, most of which are binary      
+#    
+####################################################################################################    
 def mapping(state):
     inputs = [] #array of floats that are between positive (1) or negative (0)
     #Allied Data
@@ -210,26 +250,46 @@ def mapping(state):
     foodPercent = state.inventories[state.whoseTurn].foodCount/11
     inputs.append(foodPercent)
 
-    #3-Our fighters vs their fighters - equal fighters is .5
-    if (len(alliedFighters) > 0 and len(enemyFighters) == 0):
+    #3-do our fighters outnumber their fighters
+    if (len(alliedFighters) > len(enemyFighters)):
         inputs.append(1.0)
     else:
-        diff = len(alliedFighters) - len(enemyFighters)
-        inputs.append(sigmoid(diff)) 
+        inputs.append(0.0)
 
-    #4-Our workers vs their workers
-    if (len(alliedWorkers) > 0 and len(enemyWorkers) == 0):
+    #4-do their fighters outnumber our fighters
+    if (len(alliedFighters) < len(enemyFighters)):
         inputs.append(1.0)
     else:
-        diff = len(alliedWorkers) - len(enemyWorkers)
-        inputs.append(sigmoid(diff)) 
+        inputs.append(0.0)
 
-    #5-Fighter distance from target avg smthd
+    #5-do our workers outnumber their workers
+    if (len(alliedWorkers) > len(enemyWorkers)):
+        inputs.append(1.0)
+    else:
+        inputs.append(0.0)
+
+    #6-do their workers outnumber our workers
+    if (len(alliedWorkers) < len(enemyWorkers)):
+        inputs.append(1.0)
+    else:
+        inputs.append(0.0)
+
+    #7-do we have a fighter close to our target
+    if len(enemyWorkers)!=0:
+        targetCoords = enemyWorkers[0].coords
+    else:    
+        targetCoords = enemyQueen.coords 
+
+    toAppend = 0.0
     if len(alliedFighters) > 0:
-        if len(enemyWorkers)!=0:
-            targetCoords = enemyWorkers[0].coords
-        else:    
-            targetCoords = enemyQueen.coords    
+        for fighter in alliedFighters:
+            if approxDist(fighter.coords, targetCoords) < 3:
+                toAppend = 1.0
+    inputs.append(toAppend)
+
+    #8-avg fighter distance method
+    if len(alliedFighters) > 0:
+           
         
         dist = 0
         for drone in alliedFighters:
@@ -253,10 +313,19 @@ def mapping(state):
     else:
         inputs.append(0.0)
 
-    #6-worker distance from food avg smthd
+    #9-a carrying worker is close to delivering food
+    toAppend = 0.0
+
+    if len(alliedWorkers) > 0:
+        for worker in alliedWorkers:
+            if worker.carrying == True and approxDist(worker.coords,alliedTunnelCoords) < 2:
+                toAppend = 1.0
+
+    inputs.append(toAppend)
+
+    #10-worker distance from food avg smthd
     distSum = 0
     if len(alliedWorkers) > 0:
-        print("I have workers")
         for worker in alliedWorkers:
             if worker.carrying == True:
                 distSum += approxDist(worker.coords,alliedTunnelCoords)
@@ -281,28 +350,51 @@ def mapping(state):
     else:
         inputs.append(0.0)
     
+    #11-queen full health
+    if alliedQueen.health == 10:
+        inputs.append(1.0)
+    else:
+        inputs.append(0.0)
 
-    #7-Queen/Anthill health % avg
-    queenHealthPerc = alliedQueen.health / 10
-    #anthillHealthPerc = alliedAnthill.health / 3
-    #inputs.append((queenHealthPerc + anthillHealthPerc)/2) #find out  how to check anthill health
-    inputs.append(queenHealthPerc)
+    #12-Queen health %
+    inputs.append(alliedQueen.health / 10)
 
-    #8-Enemy Queen/Anthill health %avg
-    queenHealthPerc = enemyQueen.health / 10
-    #anthillHealthPerc = enemyAnthill.health / 3
-    #inputs.append((queenHealthPerc + anthillHealthPerc)/2)
-    inputs.append(1-queenHealthPerc)
+    #13-anthill full health
+    if alliedAnthill.captureHealth == 3:
+        inputs.append(1.0)
+    else:
+        inputs.append(0.0)
+
+    #14-anthill health %
+    inputs.append(alliedAnthill.captureHealth / 3)
+
+    #15-enemyQueen full health
+    if enemyQueen.health == 10:
+        inputs.append(1.1)
+    else:
+        inputs.append(0.0)
+
+    #16-enemyQueen health %
+    inputs.append(enemyQueen.health / 10)
+
+    #17-enemyAnthill full health
+    if enemyAnthill.captureHealth == 3:
+        inputs.append(1.0)
+    else:
+        inputs.append(0.0)
+
+    #18-Enemy Anthill health %
+    inputs.append(enemyAnthill.captureHealth / 3)
 
     #check that the correct amounts of inputs have been added
-    if len(inputs) != 8:
-        print("length of inputs was not 8!")
-    else:                                                          # for debugging
-        print ("Produced an input from a state! : " + str(inputs)) #
+    if len(inputs) != 18:
+        print("length of inputs was not 18!")
+
 
     return inputs
 
-####################################################################################################
+
+ ####################################################################################################
 # 
 # NEURAL NET CODE HERE
 # reference: https://machinelearningmastery.com/implement-backpropagation-algorithm-scratch-python/
@@ -318,11 +410,11 @@ def initialize_network(num_inputs, num_hidden, num_outputs):
 	return network    
 
 #activate and sigmoid are helper functions for forward prop
-def activate(weights,inputs):
-    activation = weights[-1]
-	for i in range(len(weights)-1):
-		activation += weights[i] * inputs[i]
-    return activation
+def activate(inputs, weights):
+   activation = weights[-1]
+   for i in range(len(weights)-1):
+       activation += weights[i] * inputs[i]
+   return activation
 
 def sigmoid(x):
     return 1/(1 + np.exp(-x)) 
@@ -368,18 +460,21 @@ def update_weights(network, row, l_rate):
 			for j in range(len(inputs)):
 				neuron['weights'][j] += l_rate * neuron['delta'] * inputs[j]
 			neuron['weights'][-1] += l_rate * neuron['delta']
-def train(network, train, learning_rate, num_epoch, num_outputs):
+def train(network, train, learning_rate, num_epoch, num_outputs, exp):
 	for epoch in range(num_epoch):
 		sum_error = 0
 		for row in train:
 			outputs = forward_prop(network, row)
-			expected = [0 for i in range(num_outputs)] #insert heuristic results here
-			expected[row[-1]] = 1
-			sum_error += sum([(expected[i]-outputs[i])**2 for i in range(len(expected))])
+			expected = exp
+			#expected[row[-1]] = 1
+			sum_error = 0#sum([(expected[i]-outputs[i])**2 for i in range(len(expected))])
 			back_prop(network, expected)
-			update_weights(network, row, learning_rate)
+			update_weights(network, row, learning_rate)            
+####################################################################################################        
+# Class SearchNode            
 # class that represents a Node for heuristic search
 # contains a parent node, a move, a state, and an evaluation
+####################################################################################################            
 class SearchNode:
 
     #given a parent SearchNode and a Move, create a new SearchNode
@@ -390,6 +485,14 @@ class SearchNode:
         self.state = state
         self.evaluation = self.depth + heuristicStepsToGoal(self.state)
 
+
+####################################################################################################        
+# getNextState         
+# 
+# Copy and pasted from AIPlayerUtils.py
+# Commented out lines that changes state of ant.carrying to prevent a glitch h
+# 
+####################################################################################################            
 def getNextState(currentState, move):
     # variables I will need
     myGameState = currentState.fastclone()
