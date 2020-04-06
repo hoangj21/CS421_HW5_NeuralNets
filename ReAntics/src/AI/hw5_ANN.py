@@ -232,13 +232,21 @@ def mapping(state):
     alliedAnthill = getConstrList(state, state.whoseTurn, types=(ANTHILL,))[0]
     alliedWorkers = getAntList(state, state.whoseTurn, types=(WORKER,))
     alliedFighters = getAntList(state, state.whoseTurn, types=(DRONE,SOLDIER,R_SOLDIER))
-    alliedQueen = getAntList(state, state.whoseTurn, types=(QUEEN,))[0]
+    QL = getAntList(state, state.whoseTurn, types=(QUEEN,)) #temp queenlist variable
+    if (len(QL) > 0):
+        alliedQueen = QL[0]
+    else:
+        alliedQueen = None
     #Enemy Data
     enemyTunnelCoords = getConstrList(state, 1-state.whoseTurn, types=(TUNNEL,))[0].coords
     enemyAnthill = getConstrList(state, 1-state.whoseTurn, types=(ANTHILL,))[0]
     enemyWorkers = getAntList(state, 1-state.whoseTurn, types=(WORKER,))
     enemyFighters = getAntList(state, 1-state.whoseTurn, types=(DRONE,SOLDIER,R_SOLDIER))
-    enemyQueen = getAntList(state, 1-state.whoseTurn, types=(QUEEN,))[0]
+    QL = getAntList(state, 1-state.whoseTurn, types=(QUEEN,))
+    if(len(QL) > 0):
+        enemyQueen = QL[0]
+    else:
+        enemyQueen = None
 
     #1-have I won
     if getWinner(state) == state.whoseTurn:
@@ -277,8 +285,11 @@ def mapping(state):
     #7-do we have a fighter close to our target
     if len(enemyWorkers)!=0:
         targetCoords = enemyWorkers[0].coords
-    else:    
-        targetCoords = enemyQueen.coords 
+    else:
+        if (enemyQueen != None) :    
+            targetCoords = enemyQueen.coords
+        else:
+            targetCoords = enemyAnthill.coords
 
     toAppend = 0.0
     if len(alliedFighters) > 0:
@@ -288,7 +299,7 @@ def mapping(state):
     inputs.append(toAppend)
 
     #8-avg fighter distance method
-    if len(alliedFighters) > 0:
+    if len(alliedFighters) > 0 or alliedQueen == None or enemyQueen == None:
            
         
         dist = 0
@@ -351,13 +362,19 @@ def mapping(state):
         inputs.append(0.0)
     
     #11-queen full health
-    if alliedQueen.health == 10:
+    if (alliedQueen != None):
+        if alliedQueen.health == 10:
         inputs.append(1.0)
+        else:
+        inputs.append(0.0)
     else:
         inputs.append(0.0)
 
     #12-Queen health %
-    inputs.append(alliedQueen.health / 10)
+    if (alliedQueen != None):
+        inputs.append(alliedQueen.health / 10)
+    else:
+        inputs.append(0.0)
 
     #13-anthill full health
     if alliedAnthill.captureHealth == 3:
@@ -369,13 +386,19 @@ def mapping(state):
     inputs.append(alliedAnthill.captureHealth / 3)
 
     #15-enemyQueen full health
-    if enemyQueen.health == 10:
-        inputs.append(1.1)
+    if(enemyQueen != None):
+        if enemyQueen.health == 10:
+            inputs.append(1.0)
+        else:
+            inputs.append(0.0)
     else:
         inputs.append(0.0)
 
     #16-enemyQueen health %
-    inputs.append(enemyQueen.health / 10)
+    if (enemyQueen != None):
+        inputs.append(enemyQueen.health / 10)
+    else:
+        inputs.append(0.0)
 
     #17-enemyAnthill full health
     if enemyAnthill.captureHealth == 3:
