@@ -144,16 +144,21 @@ class AIPlayer(Player):
     def registerWin(self, hasWon):
         
         print("\nThe Game Ended!")
-        print("State IO List:")
-        print(self.stateInList)
-        print(self.stateOutList)
+       # print("State IO List:")
+       # print(self.stateInList)
+       # print(self.stateOutList)
         
         #for pair in self.stateIOList:
             #print(pair)
         seed(1)
-        net = initialize_network(18, 13, 1)
+        net = initialize_network(18,10,1)
         dataset = self.stateInList
-        train(net,dataset,.5,20,1,self.stateOutList)
+        rand.shuffle(dataset)
+        train(net,dataset,.5,1000,1,self.stateOutList)
+        #print(net[1])
+        f= open("out.txt","w+")
+        for layer in net:
+            f.write(str(layer))
         print(net[1])
         
         
@@ -239,7 +244,12 @@ def mapping(state):
     enemyWorkers = getAntList(state, 1-state.whoseTurn, types=(WORKER,))
     enemyFighters = getAntList(state, 1-state.whoseTurn, types=(DRONE,SOLDIER,R_SOLDIER))
     enemyQueen = getAntList(state, 1-state.whoseTurn, types=(QUEEN,))[0]
-
+    '''
+    
+  File "F:\Work\CS421_HW5_NeuralNets\ReAntics\src\AI\hw5_ANN.py", line 242, in mapping
+    enemyQueen = getAntList(state, 1-state.whoseTurn, types=(QUEEN,))[0]
+IndexError: list index out of range
+    '''
     #1-have I won
     if getWinner(state) == state.whoseTurn:
         inputs.append(1.0)
@@ -449,6 +459,9 @@ def back_prop(network, expected):
 		for j in range(len(layer)):
 			neuron = layer[j]
 			neuron['delta'] = errors[j] * transfer_derivative(neuron['output'])
+	f= open("error.txt","w+")
+	f.write(str(network[1][0]['delta']))
+       
 
 # Update network weights with error
 def update_weights(network, row, l_rate):
